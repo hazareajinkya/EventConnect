@@ -1,0 +1,6 @@
+{
+  "eventPhoto": "/event-photo.jpeg",
+  "faces": [],
+  "detectedAt": "2026-01-18T00:00:00.000Z",
+  "note": "This file will be populated with pre-detected faces. Run detection once and save results here."
+}

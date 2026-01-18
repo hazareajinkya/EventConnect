@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detect Faces and Save</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        button {
+            background: #00f3ff;
+            color: black;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #00d4e0;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        #preview {
+            margin: 20px 0;
+            max-width: 100%;
+        }
+        #preview img {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Face Detection Tool</h1>
+    <p>Use this tool to detect faces in the event photo and save the results.</p>
+    
+    <div>
+        <button id="detectBtn">Detect Faces</button>
+        <button id="saveBtn" disabled>Save Results</button>
+    </div>
+    
+    <div id="status">Ready to detect faces...</div>
+    
+    <div id="preview"></div>
+    
+    <script type="module">
+        const MODEL_URL = '/models';
+        let faceapi = null;
+        let detectedFaces = [];
+        
+        const loadFaceApi = async () => {
+            if (!faceapi) {
+                faceapi = await import('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+                faceapi.env.monkeyPatch({
+                    fetch: window.fetch,
+                    Canvas: window.HTMLCanvasElement,
+                    Image: window.HTMLImageElement,
+                    ImageData: window.ImageData,
+                    Video: window.HTMLVideoElement,
+                    createCanvasElement: () => document.createElement('canvas'),
+                    createImageElement: () => document.createElement('img')
+                });
+            }
+            return faceapi;
+        };
+        
+        const loadModels = async () => {
+            const api = await loadFaceApi();
+            if (!api) return;
+            
+            await api.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            try {
+                await api.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+            } catch (e) {
+                console.warn('SSD Mobilenet not available');
+            }
+            await api.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        };
+        
+        const detectFaces = async () => {
+            const statusDiv = document.getElementById('status');
+            const detectBtn = document.getElementById('detectBtn');
+            const saveBtn = document.getElementById('saveBtn');
+            const previewDiv = document.getElementById('preview');
+            
+            detectBtn.disabled = true;
+            statusDiv.textContent = 'Loading models...';
+            
+            try {
+                await loadModels();
+                statusDiv.textContent = 'Models loaded. Loading image...';
+                
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.src = '/event-photo.jpeg';
+                
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+                
+                statusDiv.textContent = 'Detecting faces...';
+                
+                const api = await loadFaceApi();
+                const detections = await api.detectAllFaces(img, new api.SsdMobilenetv1Options({ minConfidence: 0.1 }));
+                
+                const { naturalWidth, naturalHeight } = img;
+                detectedFaces = detections.map((d, idx) => ({
+                    id: `face-${idx + 1}-${Date.now()}`,
+                    x: d.box.x / naturalWidth,
+                    y: d.box.y / naturalHeight,
+                    width: d.box.width / naturalWidth,
+                    height: d.box.height / naturalHeight,
+                }));
+                
+                statusDiv.textContent = `✅ Detected ${detectedFaces.length} faces!`;
+                detectBtn.disabled = false;
+                saveBtn.disabled = false;
+                
+                // Show preview
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = 3;
+                detections.forEach(d => {
+                    ctx.strokeRect(d.box.x, d.box.y, d.box.width, d.box.height);
+                });
+                
+                previewDiv.innerHTML = '<h3>Preview:</h3>';
+                previewDiv.appendChild(canvas);
+                
+            } catch (err) {
+                statusDiv.textContent = `❌ Error: ${err.message}`;
+                detectBtn.disabled = false;
+                console.error(err);
+            }
+        };
+        
+        const saveResults = () => {
+            const data = {
+                eventPhoto: '/event-photo.jpeg',
+                faces: detectedFaces,
+                detectedAt: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pre-detected-faces.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            document.getElementById('status').textContent = '✅ Results saved! Copy this file to /public/pre-detected-faces.json';
+        };
+        
+        document.getElementById('detectBtn').addEventListener('click', detectFaces);
+        document.getElementById('saveBtn').addEventListener('click', saveResults);
+    </script>
+</body>
+</html>
