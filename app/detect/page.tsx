@@ -159,9 +159,14 @@ export default function FaceTaggingPage() {
       <header className="relative z-10 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+            <a 
+              href="https://aice.services" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-10 h-10 bg-black rounded-lg flex items-center justify-center hover:bg-gray-800 transition-all"
+            >
               <span className="text-white font-bold text-sm">AICE</span>
-            </div>
+            </a>
             <span className="text-gray-400 text-lg font-light">/</span>
             <span className="text-gray-900 font-medium">Event Connect</span>
           </div>
